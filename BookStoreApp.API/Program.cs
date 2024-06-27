@@ -1,4 +1,5 @@
 using BookStoreApp.API.Data;
+using BookStoreApp.API.Models.Configurations;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 
@@ -17,6 +18,9 @@ namespace BookStoreApp.API
 
             builder.Services.AddDbContext<BookStoreDbContext>(options =>
                 options.UseSqlServer(connString));
+
+            // Configurazione di AutoMapper
+            builder.Services.AddAutoMapper(typeof(MapperConfig));
 
             builder.Services.AddControllers();
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
