@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using BookStoreApp.API.Data;
 using BookStoreApp.API.Models.Author;
 using AutoMapper;
+using BookStoreApp.API.Static;
 
 namespace BookStoreApp.API.Controllers
 {
@@ -17,35 +18,68 @@ namespace BookStoreApp.API.Controllers
     {
         private readonly BookStoreDbContext _context;
         private readonly IMapper mapper;
+        private readonly ILogger<AuthorsController> logger;
 
-        public AuthorsController(BookStoreDbContext context, IMapper mapper)
+        public AuthorsController(BookStoreDbContext context, IMapper mapper, ILogger<AuthorsController> logger)
         {
             _context = context;
             this.mapper = mapper;
+            this.logger = logger;
         }
 
         // GET: api/Authors
         [HttpGet]
         public async Task<ActionResult<IEnumerable<DtoAuthorReadOnly>>> GetAuthors()
         {
-            var authors = mapper.Map<IEnumerable<DtoAuthorReadOnly>>(await _context.Authors.ToListAsync());
-            // con OK() si restituisce un codice 200
-            return Ok(authors);
+            // con LogInformation si registra l'azione nel log
+            logger.LogInformation($"GET: Request to {nameof(GetAuthors)}");
+            try
+            {
+                // con ToListAsync() si restituisce una lista di autori
+                var authors = mapper.Map<IEnumerable<DtoAuthorReadOnly>>(await _context.Authors.ToListAsync());
+                // con OK() si restituisce un codice 200
+                return Ok(authors);
+            }
+            catch (Exception ex)
+            {
+                // con LogError si registra l'errore nel log e si restituisce un il metodo che ha generato l'errore
+                logger.LogError(ex, $"Error Performing GET in {nameof(GetAuthors)}");
+
+                // ritorna un codice 500 (crea un codice di errore personalizzato)
+                //return StatusCode(500, "There was an error completing your request. Please Try Again Later");
+                
+                // in questo modo chiama il metodo statico Error500Message della classe Messages dove sono salvati gli errori personalizzati da riutilizzare
+                return StatusCode(500, Messages.Error500Message);
+            }
+            
         }
 
         // GET: api/Authors/5
         [HttpGet("{id}")]
         public async Task<ActionResult<DtoAuthorReadOnly>> GetAuthor(int id)
         {
-            var author = await _context.Authors.FindAsync(id);
-
-            if (author == null)
+            try
             {
-                return NotFound();
-            }
-            var authorDto = mapper.Map<DtoAuthorReadOnly>(author);
+                var author = await _context.Authors.FindAsync(id);
 
-            return Ok(authorDto);
+                if (author == null)
+                {
+                    // con LogWarning si registra un warning nel log
+                    logger.LogWarning($"GET: Author {nameof(GetAuthor)} with id {id} not found");
+
+                    return NotFound();
+                }
+                var authorDto = mapper.Map<DtoAuthorReadOnly>(author);
+
+                return Ok(authorDto);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, $"Error Performing GET in {nameof(GetAuthor)}");
+
+                return StatusCode(500, Messages.Error500Message);
+            }
+       
         }
 
         // PUT: api/Authors/5
@@ -55,6 +89,8 @@ namespace BookStoreApp.API.Controllers
         {
             if (id != authorDto.Id)
             {
+                logger.LogWarning($"Update ID invalid in {nameof(PutAuthor)} - ID: {id}");
+
                 return BadRequest();
             }
 
@@ -62,6 +98,9 @@ namespace BookStoreApp.API.Controllers
 
             if (author == null)
             {
+                // con LogWarning si registra un warning nel log
+                logger.LogWarning($"{nameof(Author)} record not found in {nameof(PutAuthor)} - ID: {id}");
+
                 return NotFound();
             }
 
@@ -72,16 +111,21 @@ namespace BookStoreApp.API.Controllers
             {
                 await _context.SaveChangesAsync();
             }
-            catch (DbUpdateConcurrencyException)
+            // se non viene salvato correttamente, si controlla se l'autore esiste
+            catch (DbUpdateConcurrencyException ex)
             {
-                // se il metodo nel controllo el async, si deve usare await
+                // se il metodo nel controllo e' async, si deve usare await
                 if (!await AuthorExists(id))
                 {
+                    // con LogWarning si registra un warning nel log
+                    logger.LogWarning($"PUT: Author id {id} not found");
+
                     return NotFound();
                 }
                 else
                 {
-                    throw;
+                    logger.LogError(ex, $"Error Performing PUT in {nameof(PutAuthor)}");
+                    return StatusCode(500, Messages.Error500Message);
                 }
             }
 
@@ -93,7 +137,9 @@ namespace BookStoreApp.API.Controllers
         [HttpPost]
         public async Task<ActionResult<DtoAuthorCreate>> PostAuthor(DtoAuthorCreate authorDto)
         {
-            /* metodo per mappare i campi di authorDto con quelli di Author (vecchio metodo)
+            try
+            {
+                /* metodo per mappare i campi di authorDto con quelli di Author (vecchio metodo)
             var author = new Author
             {
                 FirstName = authorDto.FirstName,
@@ -101,34 +147,55 @@ namespace BookStoreApp.API.Controllers
                 Bio = authorDto.Bio
             };*/
 
-            // metodo per mappare i campi di authorDto con quelli di Author con Mapper (nuovo metodo)
-            var author = mapper.Map<Author>(authorDto);
+                // metodo per mappare i campi di authorDto con quelli di Author con Mapper (nuovo metodo)
+                var author = mapper.Map<Author>(authorDto);
 
-            //RESO ASYNC (originariamente non lo era)
-            await _context.Authors.AddAsync(author);
-            await _context.SaveChangesAsync();
+                //RESO ASYNC (originariamente non lo era)
+                await _context.Authors.AddAsync(author);
+                await _context.SaveChangesAsync();
 
-            return CreatedAtAction(nameof(GetAuthor), new { id = author.Id }, author);
+                return CreatedAtAction(nameof(GetAuthor), new { id = author.Id }, author);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, $"Error Performing POST in {nameof(PostAuthor)}");
+                return StatusCode(500, Messages.Error500Message);
+            }
+            
         }
 
         // DELETE: api/Authors/5
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteAuthor(int id)
         {
-            var author = await _context.Authors.FindAsync(id);
-            if (author == null)
+            try
             {
-                return NotFound();
+                var author = await _context.Authors.FindAsync(id);
+                if (author == null)
+                {
+                    // con LogWarning si registra un warning nel log
+                    logger.LogWarning($"DELETE: Author id {id} not found");
+
+                    return NotFound();
+                }
+
+                _context.Authors.Remove(author);
+                await _context.SaveChangesAsync();
+
+                return NoContent();
             }
+            catch (Exception ex)
+            {
+                logger.LogWarning($"{nameof(Author)} record not found in {nameof(DeleteAuthor)} - ID: {id}");
 
-            _context.Authors.Remove(author);
-            await _context.SaveChangesAsync();
-
-            return NoContent();
+                return StatusCode(500, Messages.Error500Message);
+            }
+            
         }
 
         // Questo metodo e' stato reso async (originalmente non lo era)
         // RICORDARSI di aggiungere await nel if del catch del PUT!!!
+        // questo metodo controlla se l'autore esiste
         private async Task<bool> AuthorExists(int id)
         {
             return await _context.Authors.AnyAsync(e => e.Id == id);
