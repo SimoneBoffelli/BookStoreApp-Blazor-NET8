@@ -13,20 +13,27 @@ namespace BookStoreApp.API.Models.Configurations
     {
         public MapperConfig()
         {
-            // Mappatura tra classe Author e DtoAuthorCreate
+            // Mappatura tra classe Author e DtoAuthor
             // permette di mappare i campi di Author con quelli di DtoAuthorCreate (tra database e data transfer object)
             CreateMap<DtoAuthorCreate, AuthorEntity>().ReverseMap(); // usare nome variabile definita in using
             CreateMap<DtoAuthorReadOnly, AuthorEntity>().ReverseMap();
             CreateMap<DtoAuthorUpdate, AuthorEntity>().ReverseMap();
 
-            //CreateMap<DtoAuthorCreate, AuthorEntity>().ReverseMap(); 
+            // Mappatura tra classe Book e DtoBook
+            CreateMap<DtoBookCreate, BookEntity>().ReverseMap();
             CreateMap<DtoBookReadOnly, BookEntity>().ReverseMap();
-            // mappatura tra BookEntity e DtoBookReadOnly per visualizzare il nome dell'autore
+            CreateMap<DtoBookUpdate, BookEntity>().ReverseMap();
+            CreateMap<DtoBookDetails, BookEntity>().ReverseMap();
+
+            // mappatura tra BookEntity e DtoBook per visualizzare il nome dell'autore
             CreateMap<BookEntity, DtoBookReadOnly>()
                 .ForMember(q => q.AuthorName, 
                 d => d.MapFrom(map => $"{map.Author.FirstName} {map.Author.LastName}"))
                 .ReverseMap();
-            //CreateMap<DtoAuthorUpdate, AuthorEntity>().ReverseMap();
+            CreateMap<BookEntity, DtoBookDetails>()
+                .ForMember(q => q.AuthorName,
+                d => d.MapFrom(map => $"{map.Author.FirstName} {map.Author.LastName}"))
+                .ReverseMap();
         }
     }
 }

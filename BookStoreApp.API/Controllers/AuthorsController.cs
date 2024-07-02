@@ -139,7 +139,7 @@ namespace BookStoreApp.API.Controllers
         {
             try
             {
-                /* metodo per mappare i campi di authorDto con quelli di Author (vecchio metodo)
+            /* metodo per mappare i campi di authorDto con quelli di Author (vecchio metodo)
             var author = new Author
             {
                 FirstName = authorDto.FirstName,
