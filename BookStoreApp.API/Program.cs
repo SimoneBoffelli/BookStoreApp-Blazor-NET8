@@ -1,5 +1,6 @@
 using BookStoreApp.API.Data;
 using BookStoreApp.API.Models.Configurations;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 
@@ -15,6 +16,11 @@ namespace BookStoreApp.API
 
             // Configurazione del DbContext per l'accesso al database
             var connString = builder.Configuration.GetConnectionString("BookStoreAppDbConnection");
+
+            // identityUser e' la classe che rappresenta l'utente base
+            builder.Services.AddIdentityCore<ApiUser>() // specifica la classe che rappresenta l'utente base (personalizzata -> standard = IdentityUser)
+                .AddRoles<IdentityRole>() // i ruoli rappresentano i diversi tipi di utenti (es. admin, user e i loro permessi)
+                .AddEntityFrameworkStores<BookStoreDbContext>(); // specifica il DbContext da utilizzare per l'accesso al database
 
             builder.Services.AddDbContext<BookStoreDbContext>(options =>
                 options.UseSqlServer(connString));
