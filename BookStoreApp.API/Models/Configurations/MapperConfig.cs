@@ -6,6 +6,8 @@ using BookStoreApp.API.Models.Author;
 // Alias per la classe Book (evita conflitti con la classe Book e il nameplate Book)
 using BookEntity = BookStoreApp.API.Data.Book;
 using BookStoreApp.API.Models.Book;
+using BookStoreApp.API.Models.User;
+using BookStoreApp.API.Data;
 
 namespace BookStoreApp.API.Models.Configurations
 {
@@ -34,6 +36,9 @@ namespace BookStoreApp.API.Models.Configurations
                 .ForMember(q => q.AuthorName,
                 d => d.MapFrom(map => $"{map.Author.FirstName} {map.Author.LastName}"))
                 .ReverseMap();
+
+            // mappatura tra User e DtoUser
+            CreateMap<ApiUser, DtoUser>().ReverseMap();
         }
     }
 }
