@@ -1,8 +1,11 @@
 using BookStoreApp.API.Data;
 using BookStoreApp.API.Models.Configurations;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using Serilog;
+using System.Text;
 
 namespace BookStoreApp.API
 {
@@ -11,6 +14,9 @@ namespace BookStoreApp.API
         public static void Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
+
+            builder.Configuration.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
+            builder.Configuration.AddJsonFile("secret.json", optional: true, reloadOnChange: true);
 
             // Add services to the container.
 
@@ -47,6 +53,33 @@ namespace BookStoreApp.API
                         .AllowAnyHeader());
             });
 
+            //----------------------------------------------------------
+            // Configurazione dell'autenticazione JWT
+            builder.Services.AddAuthentication(options =>
+            {
+                // specifica il metodo di autenticazione da utilizzare
+                options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                // specifica il metodo di autenticazione da utilizzare per le richieste non autenticate
+                options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+            }).AddJwtBearer(options =>
+            {
+                // specifica i parametri per la validazione del token
+                options.TokenValidationParameters = new TokenValidationParameters
+                {
+                    // ci sono molte opzioni per la validazione del token, controllare quali usare
+                    // in base alle esigenze del progetto
+                    ValidateIssuerSigningKey = true, // controlla se la chiave pubblica e' valida
+                    ValidateIssuer = true, // controlla se l'issuer e' valido
+                    ValidateAudience = true, // controlla se l'audience e' valida
+                    ValidateLifetime = true, // controlla se il token e' scaduto
+                    ClockSkew = TimeSpan.Zero, // differenza massima tra l'orario del server e quello del client
+                    ValidIssuer = builder.Configuration["JwtSettings:Issuer"], // riporta al file appsettings.json
+                    ValidAudience = builder.Configuration["JwtSettings:Audience"], // riporta al file appsettings.json
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["JwtSettings:Key"])) // riporta al file secret.json
+                };
+            });
+            //----------------------------------------------------------
+
             var app = builder.Build();
 
             // Configure the HTTP request pipeline.
@@ -61,8 +94,12 @@ namespace BookStoreApp.API
             // abilita l'utilizzo di CORS policy
             app.UseCors("AllowAll");
 
-            app.UseAuthorization();
+            //----------------------------------------------------------
+            // abilita la gestione delle richieste HTTP
+            app.UseAuthentication();
+            //----------------------------------------------------------
 
+            app.UseAuthorization();
 
             app.MapControllers();
 

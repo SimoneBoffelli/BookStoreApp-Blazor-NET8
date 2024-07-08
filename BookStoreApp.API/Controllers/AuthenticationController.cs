@@ -1,9 +1,14 @@
 ﻿using AutoMapper;
 using BookStoreApp.API.Data;
 using BookStoreApp.API.Models.User;
+using BookStoreApp.API.Static;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
 
 namespace BookStoreApp.API.Controllers
 {
@@ -14,14 +19,18 @@ namespace BookStoreApp.API.Controllers
         private readonly ILogger<AuthenticationController> logger;
         private readonly IMapper mapper;
         private readonly UserManager<ApiUser> userManager;
+        // permette di accedere alle configurazioni del progetto (es. appsettings.json e program.cs)
+        private readonly IConfiguration configuration;
 
         // UserManager<> e' una classe di Identity che permette di gestire le operazioni sugli utenti
         public AuthenticationController(ILogger<AuthenticationController> logger, IMapper mapper,
-            UserManager<ApiUser> userManager)
+            UserManager<ApiUser> userManager, IConfiguration configuration)
         {
             this.logger = logger;
             this.mapper = mapper;
             this.userManager = userManager;
+            // permette di accedere alle configurazioni del progetto (es. appsettings.json e program.cs)
+            this.configuration = configuration;
         }
 
         // il metodo post permette di inviare dati al server
@@ -66,6 +75,11 @@ namespace BookStoreApp.API.Controllers
                     return BadRequest(ModelState);
                 }
 
+                //-------------------------------------------------------------------
+                // assegna un claim all'utente (es. id dell'utente) che verranno inserite nel database
+                //userManager.AddClaimAsync(user, new Claim(CustomClaimTypes.Uid, user.Id));
+                //-------------------------------------------------------------------
+
                 // assegna il ruolo di default "User"
                 await userManager.AddToRoleAsync(user, "User");
 
@@ -101,7 +115,7 @@ namespace BookStoreApp.API.Controllers
         [HttpPost]
         // il metodo Route permette di loggare un utente (il percorso sara' api/authentication/login)
         [Route("login")]
-        public async Task<IActionResult> Login(DtoLogginUser userDto)
+        public async Task<ActionResult<AuthResponse>> Login(DtoLogginUser userDto)
         {
             // logga il tentativo di login
             logger.LogInformation($"Login Attempt for {userDto.Email}");
@@ -116,10 +130,23 @@ namespace BookStoreApp.API.Controllers
 
                 // se l'utente non esiste o la password non e' valida ritorna un errore 404
                 if (user == null || passwordValid == false)
-                    return Unauthorized(userDto);
+                    return Unauthorized(userDto); // ritorna un errore 401
+
+                //-------------------------------------------------------------------
+                // genera il token per l'utente
+                string tokenString = await GenerateToken(user);
+
+                // crea un oggetto di tipo AuthResponse per ritornare il token
+                var response = new AuthResponse
+                {
+                    Email = userDto.Email,
+                    Token = tokenString,
+                    UserId = user.Id
+                };
+                //-------------------------------------------------------------------
 
                 // ritorna un messaggio di successo
-                return Accepted();
+                return Ok(response);
             }
             catch (Exception ex)
             {
@@ -131,5 +158,51 @@ namespace BookStoreApp.API.Controllers
                 return Problem($"Something Went Wrong in the {nameof(Login)}", statusCode: 500);
             }
         }
+
+        //-------------------------------------------------------------------
+        // metodo per la generazione del token
+        private async Task<string> GenerateToken(ApiUser user)
+        {
+            // specifica la chiave di sicurezza per la generazione del token
+            // stesso codice presente in program.cs nel builder di JWT
+            var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(configuration["JwtSettings:Key"]));
+
+            // specifica i parametri per la generazione del token per il certificato
+            var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
+
+            // definizione delle regole per il token
+            var roles = await userManager.GetRolesAsync(user);
+
+            // definizione una lista informazioni per il token dalle regole
+            var roleClaims = roles.Select(q => new Claim(ClaimTypes.Role, q)).ToList();
+
+            // definizione delle informazioni per il token dal database
+            var userClaims = await userManager.GetClaimsAsync(user);
+
+            // genera le informazioni per il token che verranno inserite nel token (es. issuer, audience, scadenza)
+            var claims = new List<Claim>
+            {
+                new Claim(JwtRegisteredClaimNames.Sub, user.UserName), // potrebbe usare anche user.Email (sono uguali in questo caso)
+                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()), // specifica un id univoco per il token
+                new Claim(JwtRegisteredClaimNames.Email, user.Email), // specifica l'email dell'utente
+                // nome claim sara' "uid" e valore claim sara' l'id dell'utente (chiave = valore)
+                new Claim(CustomClaimTypes.Uid, user.Id) // specifica l'id dell'utente definito nella classe CustomClaimTypes (nella cartella Static)
+            }
+            .Union(userClaims) // unione delle informazioni per il token dal database
+            .Union(roleClaims); // unione delle informazioni per il token dalle regole
+
+            // genera il token
+            var token = new JwtSecurityToken(
+                issuer: configuration["JwtSettings:Issuer"], // specifica l'issuer del token
+                audience: configuration["JwtSettings:Audience"], // specifica l'audience del token
+                claims: claims, // specifica le informazioni per il token
+                expires: DateTime.UtcNow.AddMinutes(Convert.ToInt32(configuration["JwtSettings:Duration"])), // specifica la scadenza del token
+                signingCredentials: credentials // specifica le credenziali per la generazione del token
+                );
+
+            // ritorna il token generato convertito in stringa
+            return new JwtSecurityTokenHandler().WriteToken(token); 
+        }
+        //-------------------------------------------------------------------
     }
 }

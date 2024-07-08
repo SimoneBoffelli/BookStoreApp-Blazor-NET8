@@ -11,11 +11,13 @@ using BookStoreApp.API.Models.Book;
 using AutoMapper.QueryableExtensions;
 using BookStoreApp.API.Models.Author;
 using BookStoreApp.API.Static;
+using Microsoft.AspNetCore.Authorization;
 
 namespace BookStoreApp.API.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize] // specifica che l'accesso a questo controller e' consentito solo agli utenti autenticati (se no ritorna 401 Unauthorized)
     public class BooksController : ControllerBase
     {
         private readonly BookStoreDbContext _context;
@@ -31,6 +33,7 @@ namespace BookStoreApp.API.Controllers
 
         // GET: api/Books
         [HttpGet]
+        [AllowAnonymous] // specifica che l'accesso a questo controller e' consentito a tutti gli utenti (se no ritorna 401 Unauthorized)
         public async Task<ActionResult<IEnumerable<DtoBookReadOnly>>> GetBooks()
         {
             // con LogInformation si registra l'azione nel log
@@ -91,6 +94,7 @@ namespace BookStoreApp.API.Controllers
         // PUT: api/Books/5
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPut("{id}")]
+        [Authorize(Roles = "Administrator")] // specifica che l'accesso a questo controller e' consentito solo agli utenti autenticati (se no ritorna 401 Unauthorized)
         public async Task<IActionResult> PutBook(int id, DtoBookUpdate bookDto)
         {
             if (id != bookDto.Id)
@@ -142,6 +146,7 @@ namespace BookStoreApp.API.Controllers
         // POST: api/Books
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPost]
+        [Authorize(Roles = "Administrator")] // specifica che l'accesso a questo controller e' consentito solo agli utenti autenticati (se no ritorna 401 Unauthorized)
         public async Task<ActionResult<DtoBookCreate>> PostBook(DtoBookCreate bookDto)
         {
             try
@@ -162,6 +167,7 @@ namespace BookStoreApp.API.Controllers
 
         // DELETE: api/Books/5
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Administrator ")] // specifica che l'accesso a questo controller e' consentito solo agli utenti autenticati (se no ritorna 401 Unauthorized)
         public async Task<IActionResult> DeleteBook(int id)
         {
             try
